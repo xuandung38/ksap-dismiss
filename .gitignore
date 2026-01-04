@@ -37,6 +37,9 @@ build/
 *.pem
 *.key
 
-.claude/*
+# Claude AI config (local only)
+.claude/
+
+# Local docs and plans
 docs/
-plans/*
+plans/
