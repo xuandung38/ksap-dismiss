@@ -9,6 +9,7 @@ final class SecureOperationExecutor {
 
     private let touchID = TouchIDAuthenticator.shared
     private let xpc = XPCClient.shared
+    private let installer = HelperInstaller.shared
     private let logger = Logger(subsystem: "com.hxd.ksapdismiss", category: "SecureExecutor")
 
     private init() {}
@@ -35,7 +36,12 @@ final class SecureOperationExecutor {
             try await touchID.authenticateWithFallback(reason: reason)
         }
 
-        // Step 2: Ensure XPC connection
+        // Step 2: Ensure helper installed and XPC connected
+        if !installer.isInstalled {
+            logger.info("Installing helper...")
+            try await installer.install()
+        }
+
         if !xpc.isConnected {
             logger.info("Establishing XPC connection")
             try await xpc.connectWithRetry()
@@ -67,10 +73,25 @@ final class SecureOperationExecutor {
 
     /// Get keyboard status (no auth required - read-only)
     func getKeyboardStatus() async throws -> (hasEntries: Bool, keyboards: [String]?) {
-        // Ensure connection but no auth needed for read
+        // Ensure helper installed and connected but no auth for read
+        if !installer.isInstalled {
+            try await installer.install()
+        }
         if !xpc.isConnected {
             try await xpc.connectWithRetry()
         }
         return try await xpc.getKeyboardStatus()
+    }
+
+    // MARK: - Helper Management
+
+    /// Check if helper is installed
+    var isHelperInstalled: Bool {
+        installer.isInstalled
+    }
+
+    /// Install helper explicitly
+    func installHelper() async throws {
+        try await installer.install()
     }
 }

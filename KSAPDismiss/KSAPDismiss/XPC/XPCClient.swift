@@ -157,15 +157,27 @@ extension XPCClient {
 
     /// Check if helper is installed
     var isHelperAvailable: Bool {
-        FileManager.default.fileExists(
-            atPath: "/Library/PrivilegedHelperTools/\(kHelperBundleID)"
-        )
+        HelperInstaller.shared.isInstalled
     }
 
     /// Check helper version compatibility
     func checkVersionCompatibility() -> Bool {
         guard let version = helperVersion else { return false }
         return version == kHelperVersion
+    }
+
+    /// Ensure helper is installed before connecting
+    func ensureHelperInstalled() async throws {
+        let installer = HelperInstaller.shared
+        if !installer.isInstalled || installer.needsUpdate {
+            try await installer.install()
+        }
+    }
+
+    /// Connect with auto-install if needed
+    func connectWithAutoInstall() async throws {
+        try await ensureHelperInstalled()
+        try await connect()
     }
 }
 

@@ -83,11 +83,14 @@ targets:
     platform: macOS
     sources:
       - path: Helper
+        excludes:
+          - "launchd.plist"
     settings:
       base:
         PRODUCT_NAME: com.hxd.ksapdismiss.helper
         PRODUCT_BUNDLE_IDENTIFIER: com.hxd.ksapdismiss.helper
         INFOPLIST_FILE: Helper/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Helper/Helper.entitlements
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_ALLOWED: NO
