@@ -4,11 +4,13 @@ struct SettingsView: View {
     @EnvironmentObject var keyboardManager: KeyboardManager
     @EnvironmentObject var languageManager: LanguageManager
     @EnvironmentObject var appSettings: AppSettings
+    @EnvironmentObject var updaterViewModel: UpdaterViewModel
     @State private var selectedTab: SettingsTab = .general
 
     enum SettingsTab: String, CaseIterable {
         case general = "General"
         case keyboards = "Keyboards"
+        case updates = "Updates"
         case about = "About"
 
         var localizedName: String {
@@ -19,6 +21,7 @@ struct SettingsView: View {
             switch self {
             case .general: return "gearshape"
             case .keyboards: return "keyboard"
+            case .updates: return "arrow.down.circle"
             case .about: return "info.circle"
             }
         }
@@ -44,6 +47,9 @@ struct SettingsView: View {
             case .keyboards:
                 KeyboardListView()
                     .environmentObject(keyboardManager)
+            case .updates:
+                UpdatesSettingsView()
+                    .environmentObject(updaterViewModel)
             case .about:
                 AboutView()
             }
@@ -444,5 +450,63 @@ struct InfoRow: View {
                 .fontWeight(.medium)
         }
         .frame(maxWidth: 250)
+    }
+}
+
+// MARK: - Updates Settings View
+
+struct UpdatesSettingsView: View {
+    @EnvironmentObject var updaterViewModel: UpdaterViewModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Update Check Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(L("Software Update"))
+                        .font(.headline)
+
+                    HStack {
+                        Button(L("Check for Updates...")) {
+                            updaterViewModel.checkForUpdates()
+                        }
+                        .disabled(!updaterViewModel.canCheckForUpdates)
+
+                        Spacer()
+
+                        if let lastCheck = updaterViewModel.lastUpdateCheckDate {
+                            Text(L("Last checked: ") + lastCheck.formatted())
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                Divider()
+
+                // Automatic Updates Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(L("Automatic Updates"))
+                        .font(.headline)
+
+                    Toggle(isOn: Binding(
+                        get: { updaterViewModel.automaticallyChecksForUpdates },
+                        set: { updaterViewModel.setAutomaticChecks($0) }
+                    )) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L("Check for updates automatically"))
+                            Text(L("Periodically check for new versions in the background"))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                }
+
+                Spacer()
+            }
+            .padding(24)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

@@ -8,6 +8,7 @@ public struct KSAPDismissApp: App {
     @StateObject private var keyboardManager = KeyboardManager()
     @StateObject private var languageManager = LanguageManager.shared
     @StateObject private var appSettings = AppSettings.shared
+    @StateObject private var updaterViewModel = UpdaterViewModel()
 
     public init() {
         // Skip setup in test environment
@@ -100,6 +101,7 @@ public struct KSAPDismissApp: App {
                 .environmentObject(keyboardManager)
                 .environmentObject(languageManager)
                 .environmentObject(appSettings)
+                .environmentObject(updaterViewModel)
                 .environment(\.locale, languageManager.locale)
         } label: {
             Label("KSAP Dismiss", systemImage: keyboardManager.isKSADisabled ? "keyboard.fill" : "keyboard")

@@ -15,7 +15,8 @@ final class SettingsWindowController {
     func showSettings(
         keyboardManager: KeyboardManager,
         languageManager: LanguageManager,
-        appSettings: AppSettings
+        appSettings: AppSettings,
+        updaterViewModel: UpdaterViewModel
     ) {
         // Reuse existing window if open
         if let window = window, window.isVisible {
@@ -31,6 +32,7 @@ final class SettingsWindowController {
             .environmentObject(keyboardManager)
             .environmentObject(languageManager)
             .environmentObject(appSettings)
+            .environmentObject(updaterViewModel)
             .environment(\.locale, languageManager.locale)
 
         // Create hosting controller

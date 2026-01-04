@@ -82,3 +82,12 @@
 "Appearance" = "Appearance";
 "Show in Dock" = "Show in Dock";
 "Display app icon in the Dock" = "Display app icon in the Dock";
+
+/* Updates */
+"Updates" = "Updates";
+"Check for Updates..." = "Check for Updates...";
+"Software Update" = "Software Update";
+"Last checked: " = "Last checked: ";
+"Automatic Updates" = "Automatic Updates";
+"Check for updates automatically" = "Check for updates automatically";
+"Periodically check for new versions in the background" = "Periodically check for new versions in the background";

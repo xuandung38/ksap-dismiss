@@ -4,6 +4,7 @@ struct MenuBarView: View {
     @EnvironmentObject var keyboardManager: KeyboardManager
     @EnvironmentObject var languageManager: LanguageManager
     @EnvironmentObject var appSettings: AppSettings
+    @EnvironmentObject var updaterViewModel: UpdaterViewModel
     @State private var showingError = false
     @State private var errorMessage = ""
 
@@ -111,12 +112,29 @@ struct MenuBarView: View {
 
             Divider()
 
+            // Check for Updates
+            Button {
+                updaterViewModel.checkForUpdates()
+            } label: {
+                HStack {
+                    Image(systemName: "arrow.down.circle")
+                    Text(L("Check for Updates..."))
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .disabled(!updaterViewModel.canCheckForUpdates)
+
+            Divider()
+
             // Settings & Actions
             Button {
                 SettingsWindowController.shared.showSettings(
                     keyboardManager: keyboardManager,
                     languageManager: languageManager,
-                    appSettings: appSettings
+                    appSettings: appSettings,
+                    updaterViewModel: updaterViewModel
                 )
             } label: {
                 HStack {

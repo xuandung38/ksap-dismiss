@@ -1,0 +1,43 @@
+import Foundation
+import Sparkle
+
+/// ViewModel for Sparkle updater integration
+@MainActor
+final class UpdaterViewModel: ObservableObject {
+
+    private let updaterController: SPUStandardUpdaterController
+
+    @Published var canCheckForUpdates = false
+    @Published var automaticallyChecksForUpdates = true
+
+    init() {
+        // Initialize updater with default configuration
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+
+        // Bind to updater state
+        updaterController.updater.publisher(for: \.canCheckForUpdates)
+            .assign(to: &$canCheckForUpdates)
+
+        updaterController.updater.publisher(for: \.automaticallyChecksForUpdates)
+            .assign(to: &$automaticallyChecksForUpdates)
+    }
+
+    /// Trigger manual update check
+    func checkForUpdates() {
+        updaterController.updater.checkForUpdates()
+    }
+
+    /// Toggle automatic update checks
+    func setAutomaticChecks(_ enabled: Bool) {
+        updaterController.updater.automaticallyChecksForUpdates = enabled
+    }
+
+    /// Get last update check date
+    var lastUpdateCheckDate: Date? {
+        updaterController.updater.lastUpdateCheckDate
+    }
+}

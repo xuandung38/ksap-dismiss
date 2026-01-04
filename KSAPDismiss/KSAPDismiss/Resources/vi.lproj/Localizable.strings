@@ -82,3 +82,12 @@
 "Appearance" = "Giao diện";
 "Show in Dock" = "Hiển thị trên Dock";
 "Display app icon in the Dock" = "Hiển thị biểu tượng ứng dụng trên Dock";
+
+/* Updates */
+"Updates" = "Cập nhật";
+"Check for Updates..." = "Kiểm tra cập nhật...";
+"Software Update" = "Cập nhật phần mềm";
+"Last checked: " = "Kiểm tra lần cuối: ";
+"Automatic Updates" = "Cập nhật tự động";
+"Check for updates automatically" = "Tự động kiểm tra cập nhật";
+"Periodically check for new versions in the background" = "Định kỳ kiểm tra phiên bản mới trong nền";

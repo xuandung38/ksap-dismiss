@@ -43,5 +43,15 @@
 		<key>com.hxd.ksapdismiss.helper</key>
 		<string>identifier "com.hxd.ksapdismiss.helper" and anchor apple generic</string>
 	</dict>
+	<key>SUFeedURL</key>
+	<string>https://xuandung38.github.io/ksap-dismiss/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>ErqLZ+Wmkl9y9aUo2TjT8mlLm5KSr/gZPfX5HfU29Jk=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUAllowsAutomaticUpdates</key>
+	<true/>
 </dict>
 </plist>
