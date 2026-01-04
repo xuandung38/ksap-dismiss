@@ -219,8 +219,12 @@ struct GeneralSettingsView: View {
 
         do {
             try await keyboardManager.disableKSA()
-        } catch let error as AuthError where !error.shouldShowAlert {
+        } catch let error as TouchIDError where !error.shouldShowAlert {
             // User canceled - silently ignore
+        } catch let error as HelperInstallerError {
+            if case .userCanceled = error { return }
+            errorMessage = error.errorDescription ?? "Installation failed"
+            showingError = true
         } catch {
             errorMessage = error.localizedDescription
             showingError = true
@@ -233,8 +237,12 @@ struct GeneralSettingsView: View {
 
         do {
             try await keyboardManager.enableKSA()
-        } catch let error as AuthError where !error.shouldShowAlert {
+        } catch let error as TouchIDError where !error.shouldShowAlert {
             // User canceled - silently ignore
+        } catch let error as HelperInstallerError {
+            if case .userCanceled = error { return }
+            errorMessage = error.errorDescription ?? "Installation failed"
+            showingError = true
         } catch {
             errorMessage = error.localizedDescription
             showingError = true

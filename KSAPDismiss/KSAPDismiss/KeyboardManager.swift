@@ -24,19 +24,28 @@ class KeyboardManager: ObservableObject {
 
     private let plistPath = "/Library/Preferences/com.apple.keyboardtype.plist"
 
-    // Injected dependencies
+    // Dependencies
     private let fileSystem: FileSystemProtocol
-    private let authHelper: AuthorizationProtocol
     private let usbDetector: USBDetectorProtocol.Type
+    private let secureExecutor: SecureOperationExecutor
 
+    /// Production initializer using SecureOperationExecutor
+    init() {
+        self.fileSystem = DefaultFileSystem()
+        self.usbDetector = USBKeyboardDetector.self
+        self.secureExecutor = SecureOperationExecutor.shared
+        refreshStatus()
+    }
+
+    /// Test initializer with injectable dependencies
     init(
-        fileSystem: FileSystemProtocol = DefaultFileSystem(),
-        authHelper: AuthorizationProtocol = AuthorizationHelper.shared,
-        usbDetector: USBDetectorProtocol.Type = USBKeyboardDetector.self
+        fileSystem: FileSystemProtocol,
+        usbDetector: USBDetectorProtocol.Type = USBKeyboardDetector.self,
+        secureExecutor: SecureOperationExecutor? = nil
     ) {
         self.fileSystem = fileSystem
-        self.authHelper = authHelper
         self.usbDetector = usbDetector
+        self.secureExecutor = secureExecutor ?? SecureOperationExecutor.shared
         refreshStatus()
     }
 
@@ -66,8 +75,8 @@ class KeyboardManager: ObservableObject {
     }
 
     func enableKSA() async throws {
-        // Delete the plist to re-enable KSA (single command = 1 prompt)
-        try await executeBatchPrivileged("/bin/rm -f '\(plistPath)'")
+        // Remove all keyboard entries via XPC (with Touch ID auth)
+        try await secureExecutor.removeAllKeyboardEntries()
 
         // Wait for filesystem to sync before refreshing
         try await Task.sleep(nanoseconds: 100_000_000) // 100ms
@@ -103,8 +112,8 @@ class KeyboardManager: ObservableObject {
             try validateKeyboardEntry(identifier: identifier, type: type)
         }
 
-        // Execute all keyboard entries in a SINGLE batch command (1 password prompt)
-        try await addKeyboardEntriesBatch(keyboardEntries)
+        // Add keyboard entries via XPC (with Touch ID auth)
+        try await secureExecutor.addKeyboardEntries(keyboardEntries)
 
         // Wait for filesystem to sync before refreshing
         try await Task.sleep(nanoseconds: 100_000_000) // 100ms
@@ -123,50 +132,6 @@ class KeyboardManager: ObservableObject {
         guard [40, 41, 42].contains(type) else {
             throw NSError(domain: "KSAPDismiss", code: -4,
                          userInfo: [NSLocalizedDescriptionKey: "Invalid keyboard type (must be 40, 41, or 42)"])
-        }
-    }
-
-    /// Adds multiple keyboard entries in a single privileged operation (1 password prompt)
-    private func addKeyboardEntriesBatch(_ entries: [(identifier: String, type: Int)]) async throws {
-        guard !entries.isEmpty else { return }
-
-        // Build batch command: multiple defaults write chained with &&
-        let commands = entries.map { entry in
-            "/usr/bin/defaults write '\(plistPath)' keyboardtype -dict-add '\(entry.identifier)' -int \(entry.type)"
-        }
-        let batchCommand = commands.joined(separator: " && ")
-
-        try await executeBatchPrivileged(batchCommand)
-    }
-
-    /// Executes a privileged command using AuthorizationHelper.
-    private func executePrivileged(command: String, args: [String]) async throws {
-        let helper = self.authHelper
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    try helper.executePrivileged(command: command, args: args)
-                    continuation.resume()
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
-    }
-
-    /// Executes a batch shell command with single password prompt.
-    /// Used for multiple operations that should be grouped together.
-    private func executeBatchPrivileged(_ shellCommand: String) async throws {
-        let helper = self.authHelper
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    try helper.executeBatchShellCommand(shellCommand)
-                    continuation.resume()
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
         }
     }
 
@@ -192,7 +157,13 @@ class KeyboardManager: ObservableObject {
 
         do {
             try validateKeyboardEntry(identifier: identifier, type: KeyboardType.ansi.rawValue)
-            try await addKeyboardEntriesBatch([(identifier, KeyboardType.ansi.rawValue)])
+            // Use XPC directly without Touch ID for auto-mode (silent operation)
+            // Note: Helper must already be installed for auto-mode to work
+            let xpc = XPCClient.shared
+            if !xpc.isConnected {
+                try await xpc.connectWithRetry()
+            }
+            try await xpc.addKeyboardEntries([(identifier, KeyboardType.ansi.rawValue)])
 
             // Wait and refresh
             try await Task.sleep(nanoseconds: 100_000_000)

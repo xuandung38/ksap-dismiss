@@ -203,8 +203,7 @@ struct MenuBarView: View {
             do {
                 try await keyboardManager.enableKSA()
             } catch {
-                errorMessage = error.localizedDescription
-                showingError = true
+                handleError(error)
             }
         }
     }
@@ -214,10 +213,44 @@ struct MenuBarView: View {
             do {
                 try await keyboardManager.disableKSA()
             } catch {
-                errorMessage = error.localizedDescription
-                showingError = true
+                handleError(error)
             }
         }
     }
 
+    /// Handle errors with proper filtering for user cancellations
+    private func handleError(_ error: Error) {
+        // Check for Touch ID user cancellation (silent)
+        if let touchIDError = error as? TouchIDError {
+            guard touchIDError.shouldShowAlert else { return }
+        }
+
+        // Check for XPC errors
+        if let xpcError = error as? XPCError {
+            errorMessage = xpcError.errorDescription ?? "XPC operation failed"
+            showingError = true
+            return
+        }
+
+        // Check for helper installation errors
+        if let installerError = error as? HelperInstallerError {
+            if case .userCanceled = installerError { return }
+            if let description = installerError.errorDescription {
+                errorMessage = description
+            } else {
+                errorMessage = "Installation failed"
+            }
+            showingError = true
+            return
+        }
+
+        // Default error handling
+        if let localizedError = error as? LocalizedError,
+           let description = localizedError.errorDescription {
+            errorMessage = description
+        } else {
+            errorMessage = error.localizedDescription
+        }
+        showingError = true
+    }
 }
