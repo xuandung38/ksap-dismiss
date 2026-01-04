@@ -2,6 +2,7 @@ import Foundation
 import os.log
 
 /// Combines Touch ID auth with XPC operations
+/// Falls back to direct plist writing when SMJobBless helper unavailable
 @MainActor
 final class SecureOperationExecutor {
 
@@ -10,7 +11,11 @@ final class SecureOperationExecutor {
     private let touchID = TouchIDAuthenticator.shared
     private let xpc = XPCClient.shared
     private let installer = HelperInstaller.shared
+    private let directWriter = DirectPlistWriter.shared
     private let logger = Logger(subsystem: "com.hxd.ksapdismiss", category: "SecureExecutor")
+
+    /// Whether to use fallback mode (no XPC)
+    @Published private(set) var useFallbackMode = false
 
     private init() {}
 
@@ -57,18 +62,48 @@ final class SecureOperationExecutor {
     /// Add keyboard entries with Touch ID authentication
     /// - Parameter entries: Keyboard entries to add
     func addKeyboardEntries(_ entries: [(identifier: String, type: Int)]) async throws {
-        try await execute(reason: "Configure keyboard settings") {
-            try await self.xpc.addKeyboardEntries(entries)
+        // Try XPC first, fall back to direct write
+        do {
+            try await execute(reason: "Configure keyboard settings") {
+                try await self.xpc.addKeyboardEntries(entries)
+            }
+            logger.info("Added \(entries.count) keyboard entries via XPC")
+        } catch let error as HelperInstallerError {
+            // SMJobBless failed - use fallback
+            logger.warning("XPC failed (\(error.localizedDescription)), using fallback")
+            useFallbackMode = true
+            try await directWriter.addKeyboardEntries(entries)
+            logger.info("Added \(entries.count) keyboard entries via fallback")
+        } catch let error as XPCError {
+            // XPC connection failed - use fallback
+            logger.warning("XPC error (\(error.localizedDescription)), using fallback")
+            useFallbackMode = true
+            try await directWriter.addKeyboardEntries(entries)
+            logger.info("Added \(entries.count) keyboard entries via fallback")
         }
-        logger.info("Added \(entries.count) keyboard entries")
     }
 
     /// Remove all keyboard entries with Touch ID authentication
     func removeAllKeyboardEntries() async throws {
-        try await execute(reason: "Reset keyboard settings") {
-            try await self.xpc.removeAllKeyboardEntries()
+        // Try XPC first, fall back to direct write
+        do {
+            try await execute(reason: "Reset keyboard settings") {
+                try await self.xpc.removeAllKeyboardEntries()
+            }
+            logger.info("Removed all keyboard entries via XPC")
+        } catch let error as HelperInstallerError {
+            // SMJobBless failed - use fallback
+            logger.warning("XPC failed (\(error.localizedDescription)), using fallback")
+            useFallbackMode = true
+            try await directWriter.removeAllKeyboardEntries()
+            logger.info("Removed all keyboard entries via fallback")
+        } catch let error as XPCError {
+            // XPC connection failed - use fallback
+            logger.warning("XPC error (\(error.localizedDescription)), using fallback")
+            useFallbackMode = true
+            try await directWriter.removeAllKeyboardEntries()
+            logger.info("Removed all keyboard entries via fallback")
         }
-        logger.info("Removed all keyboard entries")
     }
 
     /// Get keyboard status (no auth required - read-only)

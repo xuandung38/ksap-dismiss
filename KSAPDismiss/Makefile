@@ -49,10 +49,11 @@ bundle:
 	@echo "Creating app bundle from SPM build..."
 	@mkdir -p "KSAPDismiss.app/Contents/MacOS"
 	@mkdir -p "KSAPDismiss.app/Contents/Resources"
-	@if [ -f ".build/release/KSAPDismiss" ]; then \
-		cp ".build/release/KSAPDismiss" "KSAPDismiss.app/Contents/MacOS/"; \
-	elif [ -f ".build/debug/KSAPDismiss" ]; then \
-		cp ".build/debug/KSAPDismiss" "KSAPDismiss.app/Contents/MacOS/"; \
+	@mkdir -p "KSAPDismiss.app/Contents/Library/LaunchServices"
+	@if [ -f ".build/release/KSAPDismissApp" ]; then \
+		cp ".build/release/KSAPDismissApp" "KSAPDismiss.app/Contents/MacOS/KSAPDismiss"; \
+	elif [ -f ".build/debug/KSAPDismissApp" ]; then \
+		cp ".build/debug/KSAPDismissApp" "KSAPDismiss.app/Contents/MacOS/KSAPDismiss"; \
 	fi
 	@cp "KSAPDismiss/Info.plist" "KSAPDismiss.app/Contents/"
 	@# Copy resource bundle for i18n (SPM expects bundle in Contents/, not Resources/)
@@ -66,7 +67,31 @@ bundle:
 	done
 	@/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable KSAPDismiss" "KSAPDismiss.app/Contents/Info.plist"
 	@echo "App bundle created at KSAPDismiss.app"
-	@echo "Note: For proper signing and distribution, use Xcode."
+	@echo "Note: Helper tool requires Xcode build with proper signing for SMJobBless."
+
+# Build helper tool (requires Xcode project)
+helper:
+	@echo "Building privileged helper..."
+	@if [ -f "KSAPDismiss.xcodeproj/project.pbxproj" ]; then \
+		xcodebuild -project KSAPDismiss.xcodeproj -target KSAPDismissHelper -configuration Release build; \
+		echo "Helper built. Copy to app bundle with: make embed-helper"; \
+	else \
+		echo "Error: Xcode project required. Run 'make xcode' first."; \
+		exit 1; \
+	fi
+
+# Embed helper into app bundle (after building both)
+embed-helper:
+	@echo "Embedding helper into app bundle..."
+	@HELPER_PATH=$$(find build -name "com.hxd.ksapdismiss.helper" -type f 2>/dev/null | head -1); \
+	if [ -n "$$HELPER_PATH" ] && [ -f "$$HELPER_PATH" ]; then \
+		mkdir -p "KSAPDismiss.app/Contents/Library/LaunchServices"; \
+		cp "$$HELPER_PATH" "KSAPDismiss.app/Contents/Library/LaunchServices/"; \
+		echo "Helper embedded at KSAPDismiss.app/Contents/Library/LaunchServices/com.hxd.ksapdismiss.helper"; \
+	else \
+		echo "Error: Helper not found. Run 'make helper' first."; \
+		exit 1; \
+	fi
 
 # Run the app
 run: bundle
@@ -78,11 +103,18 @@ help:
 	@echo "KSAPDismiss Build System"
 	@echo ""
 	@echo "Targets:"
-	@echo "  all     - Build the application (default)"
-	@echo "  build   - Build with xcodebuild or SPM"
-	@echo "  xcode   - Generate Xcode project (requires xcodegen)"
-	@echo "  bundle  - Create .app bundle from SPM build"
-	@echo "  run     - Build, bundle, and run the app"
-	@echo "  install - Install to /Applications"
-	@echo "  clean   - Remove build artifacts"
-	@echo "  help    - Show this help"
+	@echo "  all          - Build the application (default)"
+	@echo "  build        - Build with xcodebuild or SPM"
+	@echo "  xcode        - Generate Xcode project (requires xcodegen)"
+	@echo "  bundle       - Create .app bundle from SPM build"
+	@echo "  helper       - Build privileged helper (requires Xcode)"
+	@echo "  embed-helper - Embed helper into app bundle"
+	@echo "  run          - Build, bundle, and run the app"
+	@echo "  install      - Install to /Applications"
+	@echo "  clean        - Remove build artifacts"
+	@echo "  help         - Show this help"
+	@echo ""
+	@echo "For SMJobBless helper to work:"
+	@echo "  1. make xcode       # Generate Xcode project"
+	@echo "  2. make build       # Build app with helper embedded"
+	@echo "  3. Sign with valid Apple Developer certificate"

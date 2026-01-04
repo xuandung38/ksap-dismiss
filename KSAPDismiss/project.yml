@@ -37,6 +37,24 @@ targets:
         type: folder
       - path: KSAPDismiss/Resources/vi.lproj
         type: folder
+    dependencies:
+      - target: KSAPDismissHelper
+    postCompileScripts:
+      - name: Embed Privileged Helper
+        script: |
+          # Create LaunchServices directory
+          HELPER_DIR="${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Contents/Library/LaunchServices"
+          mkdir -p "$HELPER_DIR"
+
+          # Copy helper binary
+          HELPER_PATH="${BUILT_PRODUCTS_DIR}/com.hxd.ksapdismiss.helper"
+          if [ -f "$HELPER_PATH" ]; then
+            cp "$HELPER_PATH" "$HELPER_DIR/"
+            echo "Helper embedded at: $HELPER_DIR/com.hxd.ksapdismiss.helper"
+          else
+            echo "warning: Helper not found at $HELPER_PATH"
+          fi
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_NAME: "KSAP Dismiss"
