@@ -26,6 +26,10 @@ let package = Package(
             exclude: ["Info.plist", "KSAPDismiss.entitlements"],
             resources: [
                 .copy("Resources")
+            ],
+            swiftSettings: [
+                // Optimize for size and speed in release builds
+                .unsafeFlags(["-O"], .when(configuration: .release))
             ]
         ),
         // Executable target with app entry point
@@ -33,7 +37,10 @@ let package = Package(
             name: "KSAPDismissApp",
             dependencies: ["KSAPDismiss"],
             path: "App",
-            sources: ["main.swift"]
+            sources: ["main.swift"],
+            swiftSettings: [
+                .unsafeFlags(["-O"], .when(configuration: .release))
+            ]
         ),
         .testTarget(
             name: "KSAPDismissTests",

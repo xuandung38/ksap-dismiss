@@ -1,8 +1,14 @@
-# System Architecture - Authentication & XPC Communication
+# System Architecture - Phase 5 Complete
 
 ## Overview
 
-KSAP Dismiss implements a multi-layer security architecture combining biometric authentication with XPC (Inter-Process Communication). The system ensures that privileged operations (modifying keyboard preference files) require explicit user authorization via Touch ID/Face ID before being executed through a privileged helper tool. This design implements the principle of least privilege while providing a seamless user experience.
+KSAP Dismiss implements a comprehensive multi-layer architecture combining:
+1. Biometric authentication (Touch ID/Face ID) for secure user authorization
+2. XPC (Inter-Process Communication) for privileged operations
+3. Sparkle 2.8.1 for automatic updates with delta compression, beta channels, and auto-rollback
+4. Performance optimizations for startup time and binary size reduction
+
+This design ensures that privileged operations (modifying keyboard preference files) require explicit user authorization via Touch ID/Face ID before being executed through a privileged helper tool. The system implements the principle of least privilege while providing seamless user experience, reliability, and automatic updates with zero user intervention required.
 
 ## Architecture Diagram
 
@@ -609,13 +615,281 @@ During execution:
 - XPC connection established to newly installed helper
 - Operation executes with elevated privileges
 
+## Phase 5: Sparkle Auto-Update & Performance Optimization
+
+### Overview
+
+Phase 5 introduces Sparkle 2.8.1 integration for automatic app updates with advanced features, coupled with comprehensive performance optimizations for startup time and binary size.
+
+### Update Architecture
+
+```
+┌─────────────────────────────────────────┐
+│     Main Application (KSAPDismiss)      │
+│                                         │
+│  ┌─────────────────────────────────┐   │
+│  │    UpdaterViewModel             │   │
+│  │  - Auto-update settings toggle  │   │
+│  │  - Update check interval config │   │
+│  │  - Beta channel opt-in          │   │
+│  │  - Rollback status tracking     │   │
+│  └─────────────────────────────────┘   │
+│           ↓                             │
+│  ┌─────────────────────────────────┐   │
+│  │    SPUUpdater (Sparkle Core)    │   │
+│  │  - Version comparison           │   │
+│  │  - Delta patch selection        │   │
+│  │  - EdDSA signature verification │   │
+│  └─────────────────────────────────┘   │
+│           ↓                             │
+│  ┌─────────────────────────────────┐   │
+│  │    UserDriverDelegate           │   │
+│  │  - Download progress tracking   │   │
+│  │  - NotificationCenter events    │   │
+│  │  - UI integration               │   │
+│  └─────────────────────────────────┘   │
+└────────────┬────────────────────────────┘
+             │ HTTPS
+             ↓
+┌─────────────────────────────────────────┐
+│  GitHub Pages / Release CDN             │
+│  ┌─────────────────────────────────┐   │
+│  │    appcast.xml                  │   │
+│  │  - Release metadata             │   │
+│  │  - DMG URLs + signatures        │   │
+│  │  - Delta patch options          │   │
+│  └─────────────────────────────────┘   │
+│  ┌─────────────────────────────────┐   │
+│  │    KSAPDismiss-X.Y.Z.dmg        │   │
+│  │  - Full app binary              │   │
+│  │  - EdDSA signed                 │   │
+│  └─────────────────────────────────┘   │
+│  ┌─────────────────────────────────┐   │
+│  │  KSAPDismiss-X.Y-X.Z.delta      │   │
+│  │  - Binary patches (optional)    │   │
+│  │  - 60-90% size reduction        │   │
+│  └─────────────────────────────────┘   │
+└─────────────────────────────────────────┘
+```
+
+### Components
+
+#### UpdaterViewModel (Main App - `Updater/UpdaterViewModel.swift`)
+
+**Type**: `@MainActor` ObservableObject
+
+**Purpose**: Manages Sparkle update settings and provides UI bindings for update controls
+
+**Responsibilities**:
+- Track auto-update toggle state
+- Configure update check interval
+- Manage beta channel opt-in
+- Track last update check date
+- Display available version information
+- Handle manual update checks
+
+**Key Properties**:
+```swift
+@Published var automaticallyChecksForUpdates: Bool
+@Published var updateCheckInterval: TimeInterval
+@Published var includeBetaVersions: Bool
+@Published var lastCheckDate: Date?
+@Published var availableVersion: String?
+@Published var isCheckingForUpdates: Bool
+```
+
+#### UserDriverDelegate (NEW - Phase 5)
+
+**Type**: `@MainActor` NSObject + SPUStandardUserDriverDelegate protocol
+
+**Purpose**: Tracks download progress and broadcasts progress events via NotificationCenter
+
+**Responsibilities**:
+- Implement download progress callbacks
+- Calculate progress percentage
+- Post NotificationCenter events for UI observers
+- Coordinate with Sparkle framework
+
+**Key Implementation** (30 lines):
+```swift
+func standardUserDriver(
+    _ userDriver: SPUStandardUserDriver,
+    didReceiveUpdateDownloadData bytesDownloaded: UInt64,
+    expectedContentLength: UInt64
+) {
+    let progress = Double(bytesDownloaded) / Double(expectedContentLength)
+
+    NotificationCenter.default.post(
+        name: .updateDownloadProgress,
+        object: nil,
+        userInfo: ["progress": progress]
+    )
+}
+```
+
+**Notification Name**: `Notification.Name.updateDownloadProgress`
+
+**Usage in UI**:
+```swift
+.onReceive(NotificationCenter.default.publisher(for: .updateDownloadProgress)) { notification in
+    if let progress = notification.userInfo?["progress"] as? Double {
+        updateProgressBar(progress)
+    }
+}
+```
+
+#### UpdaterDelegate (Sparkle Pipeline)
+
+**Type**: `NSObject + SPUUpdaterDelegate`
+
+**Purpose**: Customizes Sparkle framework behavior throughout update lifecycle
+
+**Responsibilities**:
+- Provide custom user driver (with progress tracking)
+- Handle update state transitions
+- Perform pre-install validation
+- Manage post-install cleanup
+
+#### RollbackManager
+
+**Type**: `@MainActor` Singleton
+
+**Purpose**: Tracks version launch success and enables automatic rollback on crash
+
+**Responsibilities**:
+- Detect version changes after update
+- Start launch success timer (5 minutes)
+- Detect crashes within launch window
+- Offer rollback dialog on next launch
+- Manage version backup
+
+**Rollback Flow**:
+1. App updates and restarts
+2. RollbackManager detects new version
+3. 5-minute success window starts
+4. User interaction confirms success
+5. On crash during window: offer rollback on next launch
+
+### Performance Optimizations (Phase 5)
+
+#### Binary Size Reduction
+
+**Target**: 20-30% reduction
+
+**Optimizations**:
+- Swift compiler optimization level: `-O`
+- Dead code elimination via linker
+- Debug symbol stripping in Release builds
+- Asset optimization (image compression, format consolidation)
+
+**Tracking**:
+- Automated DMG size reporting in GitHub Actions
+- Comparison with previous releases
+- CI/CD pipeline integration
+
+#### Startup Performance
+
+**Target**: Eliminate 200-500ms blocking delay
+
+**Optimization**: Deferred Update Check
+- Move update check from app launch to 5-second background delay
+- Prevents blocking app startup sequence
+- Maintains user expectation of instant launch
+- Updates checked silently in background
+
+**Implementation**:
+```swift
+DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+    SUUpdater.shared().checkForUpdates(nil)
+}
+```
+
+#### Memory Optimization
+
+**Target**: Minimal memory overhead during updates
+
+**Optimization**: Weak Self Captures
+- Use `[weak self]` in notification observers
+- Prevent retain cycles in completion handlers
+- Reduce peak memory during download
+- Clean up properly in cleanup observers
+
+### Update Flow Integration
+
+```
+1. App Startup
+   └─→ MainActor scheduler queues update check at T+5s
+
+2. Background Update Check (deferred 5s)
+   ├─→ Fetch appcast.xml from SUFeedURL
+   ├─→ Parse version entries
+   └─→ Compare versions (if newer available)
+
+3. Download Management
+   ├─→ UserDriverDelegate receives download callbacks
+   ├─→ Calculate progress percentage
+   ├─→ Post NotificationCenter events
+   └─→ UI observers update progress display
+
+4. Installation
+   ├─→ Verify EdDSA signature
+   ├─→ Mount DMG
+   ├─→ Copy app to Applications/
+   └─→ Prepare for restart
+
+5. Restart & Success Validation
+   ├─→ RollbackManager detects new version
+   ├─→ 5-minute success window starts
+   ├─→ User interaction confirms success
+   └─→ Window closes, rollback becomes unavailable
+
+6. Fallback: Crash During Window
+   ├─→ App crashes within 5 minutes of update
+   ├─→ RollbackManager restores previous version on next launch
+   ├─→ User receives rollback confirmation dialog
+   └─→ Issue reporting prompt shown
+```
+
+### Configuration
+
+#### Info.plist Settings
+```xml
+<key>SUFeedURL</key>
+<string>https://xuandung38.github.io/ksap-dismiss/appcast.xml</string>
+
+<key>SUPublicEDKey</key>
+<string>ErqLZ+Wmkl9y9aUo2TjT8mlLm5KSr/gZPfX5HfU29Jk=</string>
+```
+
+#### Entitlements
+```xml
+<key>com.apple.security.network.client</key>
+<true/>
+```
+
 ## Future Enhancements
 
-1. **Connection Pooling**: Multiple concurrent operations
-2. **Timeout Handling**: Add operation timeouts
-3. **Callback Cancellation**: Support CancellationToken
-4. **Metrics Collection**: Track latency, failure rates
-5. **Version Negotiation**: Support multiple protocol versions
-6. **Helper Auto-Update**: Background update mechanism
-7. **Installation UI**: Progress indicator during installation
-8. **Uninstall Cleanup**: Safe removal of helper artifacts
+### Phase 6+ Planned Features
+
+1. **Advanced Update Features**:
+   - Staged rollouts by user percentage
+   - A/B testing support
+   - Version-specific feature flags
+
+2. **Connection Pooling**: Multiple concurrent operations
+
+3. **Timeout Handling**: Add operation timeouts
+
+4. **Callback Cancellation**: Support CancellationToken
+
+5. **Metrics Collection**: Track latency, failure rates, update adoption
+
+6. **Version Negotiation**: Support multiple protocol versions
+
+7. **Helper Auto-Update**: Background update mechanism for helper tool
+
+8. **Installation UI**: Progress indicator during installation
+
+9. **Uninstall Cleanup**: Safe removal of helper artifacts
+
+10. **Analytics Integration**: Privacy-first update adoption metrics

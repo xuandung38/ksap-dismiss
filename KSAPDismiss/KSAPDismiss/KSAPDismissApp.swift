@@ -27,6 +27,17 @@ public struct KSAPDismissApp: App {
             Self.applyDockVisibility()
             Self.setupAutomaticMode()
             Self.setupDockVisibilityObserver()
+            Self.scheduleDeferredUpdateCheck()
+        }
+    }
+
+    /// Schedule deferred update check (5s delay to avoid blocking startup)
+    /// Note: This is a workaround since we can't capture instance properties in static method
+    /// The UpdaterViewModel is initialized as @StateObject and will exist when this fires
+    private static func scheduleDeferredUpdateCheck() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            // Post notification - UpdaterViewModel will be initialized by this point (5s after app launch)
+            NotificationCenter.default.post(name: .startDeferredUpdateCheck, object: nil)
         }
     }
 

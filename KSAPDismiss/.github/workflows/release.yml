@@ -31,8 +31,15 @@ jobs:
 
       - name: Build Release
         run: |
-          # Build for release with universal binary
-          swift build -c release --arch arm64 --arch x86_64
+          # Build for release with universal binary and optimizations
+          # --unsafe-flags required for Package.swift optimization flags
+          swift build -c release --arch arm64 --arch x86_64 \
+            --unsafe-flags \
+            -Xswiftc -O \
+            -Xlinker -dead_strip
+
+          # Strip debug symbols for size reduction (20-30%)
+          strip .build/apple/Products/Release/KSAPDismissApp
 
           echo "Build completed successfully"
           ls -lah .build/apple/Products/Release/
@@ -90,6 +97,37 @@ jobs:
 
           echo "DMG created: build/$DMG_NAME"
           ls -lh "build/$DMG_NAME"
+
+      - name: Report Binary Size
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          DMG_PATH="build/${APP_NAME}-${VERSION}.dmg"
+
+          # Get current DMG size
+          DMG_SIZE=$(stat -f%z "$DMG_PATH")
+          DMG_SIZE_MB=$((DMG_SIZE / 1024 / 1024))
+
+          echo "📦 DMG Size: ${DMG_SIZE_MB}MB"
+
+          # Compare with previous release
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "none")
+          if [ "$PREV_TAG" != "none" ]; then
+            # Get previous DMG size from GitHub Release
+            PREV_SIZE=$(gh release view "$PREV_TAG" --json assets --jq '.assets[] | select(.name | endswith(".dmg")) | .size' 2>/dev/null || echo "0")
+
+            if [ "$PREV_SIZE" != "0" ]; then
+              PREV_SIZE_MB=$((PREV_SIZE / 1024 / 1024))
+              DELTA=$((DMG_SIZE_MB - PREV_SIZE_MB))
+
+              echo "📊 Size change from $PREV_TAG: ${DELTA}MB (was ${PREV_SIZE_MB}MB)"
+
+              if [ $DELTA -gt 5 ]; then
+                echo "::warning::DMG size increased by ${DELTA}MB - investigate bloat"
+              elif [ $DELTA -lt -5 ]; then
+                echo "::notice::DMG size reduced by ${DELTA#-}MB - excellent optimization!"
+              fi
+            fi
+          fi
 
       - name: Download Sparkle Tools
         run: |

@@ -6,6 +6,11 @@ options:
   developmentLanguage: en
   defaultConfig: Debug
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
+
 configs:
   Debug: debug
   Release: release
@@ -39,6 +44,7 @@ targets:
         type: folder
     dependencies:
       - target: KSAPDismissHelper
+      - package: Sparkle
     postCompileScripts:
       - name: Embed Privileged Helper
         script: |
